@@ -1,801 +1,680 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { create } from "zustand";
 
-// -----------------------------
-// Tipos
-// -----------------------------
-type Dificulty = 1 | 2 | 3 | 4 | 5;
+/**
+ * -----------------------------------------------------------
+ *  Workout SPA en un solo archivo (React + Tailwind + Zustand)
+ *  - Pega en tu App.tsx
+ *  - Asume Tailwind ya configurado
+ * -----------------------------------------------------------
+ */
 
 type Exercise = {
   name: string;
   description: string;
   mediaUrl?: string;
-  workingSeconds?: number; // si existe -> ejercicio por tiempo
-  restingSeconds?: number; // descanso tras el ejercicio (salvo último)
-  repetitionsCount?: number; // si no hay workingSeconds -> por repeticiones
-  seriesCount?: number; // repeticiones del ejercicio (por series)
+  workingSeconds?: number; // Si existe => ejercicio por tiempo
+  restingSeconds?: number; // Descanso DESPUÉS del ejercicio (se omite en el último)
+  repetitionsCount?: number; // Si existe y no hay workingSeconds => por reps (sin tiempo)
 };
 
 type Workout = {
   id: string;
   name: string;
-  dificultyLevel: Dificulty;
-  seriesCount: number; // series del workout completo
+  dificultyLevel: 1 | 2 | 3 | 4 | 5;
   exercises: Exercise[];
 };
 
-type Step =
-  | {
-      kind: "work";
-      workoutSeriesIndex: number; // 0-based
-      exerciseIndex: number; // 0-based
-      exerciseSeriesIndex: number; // 0-based
-      title: string;
-      description: string;
-      mediaUrl?: string;
-      duration?: number; // si timed
-      reps?: number; // si por repeticiones
-      isTimed: boolean;
-    }
-  | {
-      kind: "rest";
-      workoutSeriesIndex: number;
-      exerciseIndex: number;
-      exerciseSeriesIndex: number;
-      title: "Descanso";
-      duration: number;
-    };
+type Phase = "work" | "rest";
+type Screen = "list" | "prestart" | "running" | "finished";
 
-// -----------------------------
-// Datos de ejemplo (cubre todas las casuísticas)
-// -----------------------------
-const WORKOUTS: Workout[] = [
-  {
-    id: "w1",
-    name: "Full Body Rápido",
-    dificultyLevel: 2,
-    seriesCount: 1,
-    exercises: [
-      {
-        name: "Jumping Jacks",
-        description: "Calentamiento ligero para elevar pulsaciones.",
-        mediaUrl:
-          "https://images.unsplash.com/photo-1605296867304-46d5465a13f1?q=80&w=1200&auto=format&fit=crop",
-        workingSeconds: 30,
-        restingSeconds: 15,
-      },
-      {
-        name: "Sentadillas",
-        description: "Pies al ancho de hombros, espalda recta.",
-        mediaUrl:
-          "https://images.unsplash.com/photo-1517963879433-6ad2b056d712?q=80&w=1200&auto=format&fit=crop",
-        repetitionsCount: 15,
-        restingSeconds: 20,
-        seriesCount: 2, // repetimos este ejercicio 2 veces (rep + descanso)
-      },
-      {
-        name: "Plancha",
-        description: "Activa core y glúteos, no hundas la cadera.",
-        mediaUrl:
-          "https://images.unsplash.com/photo-1575052814073-1686b50b4f87?q=80&w=1200&auto=format&fit=crop",
-        workingSeconds: 40,
-        restingSeconds: 0, // sin descanso después (último descanso no cuenta de todos modos)
-      },
-    ],
-  },
-  {
-    id: "w2",
-    name: "HIIT Corto",
-    dificultyLevel: 4,
-    seriesCount: 2, // el bloque entero se repite 2 veces
-    exercises: [
-      {
-        name: "Burpees",
-        description: "Explosivos, controla la técnica.",
-        workingSeconds: 20,
-        restingSeconds: 10,
-      },
-      {
-        name: "Mountain Climbers",
-        description: "Rodillas al pecho a ritmo vivo.",
-        workingSeconds: 20,
-        restingSeconds: 10,
-      },
-      {
-        name: "Sprints Estáticos",
-        description: "Corre en el sitio al máximo.",
-        workingSeconds: 20,
-        restingSeconds: 30,
-      },
-    ],
-  },
-  {
-    id: "w3",
-    name: "Fuerza Superior",
-    dificultyLevel: 3,
-    seriesCount: 1,
-    exercises: [
-      {
-        name: "Flexiones",
-        description: "Manos bajo hombros. Línea recta de cabeza a talones.",
-        repetitionsCount: 12,
-        restingSeconds: 30,
-        seriesCount: 3,
-      },
-      {
-        name: "Fondos en banco",
-        description: "Codos atrás, baja controlado.",
-        repetitionsCount: 10,
-        restingSeconds: 30,
-      },
-      {
-        name: "Plancha lateral",
-        description: "Mantén la cadera alta.",
-        workingSeconds: 30,
-        restingSeconds: 15,
-        seriesCount: 2,
-      },
-    ],
-  },
-];
-
-// -----------------------------
-// Audio: generador de pitidos
-// -----------------------------
-class Beeper {
-  private ctx: AudioContext | null = null;
-
-  private ensureCtx() {
-    if (!this.ctx) {
-      const AC =
-        (window as any).AudioContext || (window as any).webkitAudioContext;
-      this.ctx = new AC();
-    }
-  }
-
-  beep({
-    freq = 1000,
-    durationMs = 140,
-    type = "sine",
-    volume = 0.2,
-  }: {
-    freq?: number;
-    durationMs?: number;
-    type?: OscillatorType;
-    volume?: number;
-  } = {}) {
-    try {
-      this.ensureCtx();
-      const ctx = this.ctx!;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = type as OscillatorType;
-      osc.frequency.value = freq;
-      gain.gain.value = volume;
-      osc.connect(gain).connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + durationMs / 1000);
-    } catch (_) {
-      // Ignorar fallos de audio (autoplay policies, etc.)
-    }
-  }
-
-  // Beep corto por defecto
-  short() {
-    this.beep({ freq: 1000, durationMs: 120, type: "square" });
-  }
-  // Beep largo de fin de TRABAJO (más agudo)
-  longWorkEnd() {
-    this.beep({ freq: 1400, durationMs: 550, type: "sawtooth", volume: 0.25 });
-  }
-  // Beep largo de fin de DESCANSO (más grave)
-  longRestEnd() {
-    this.beep({ freq: 700, durationMs: 550, type: "triangle", volume: 0.25 });
-  }
-}
-const beeper = new Beeper();
-
-// -----------------------------
-// Utilidades
-// -----------------------------
-function range(n: number) {
-  return Array.from({ length: n }, (_, i) => i);
-}
-
-function stars(n: Dificulty) {
-  return "★".repeat(n) + "☆".repeat(5 - n);
-}
-
-// Construye la secuencia lineal de pasos (work/rest) con series (workout/exercise)
-// y sin descanso final.
-function buildSteps(workout: Workout): Step[] {
-  const steps: Step[] = [];
-  const wSeries = Math.max(1, workout.seriesCount ?? 1);
-
-  for (let ws = 0; ws < wSeries; ws++) {
-    workout.exercises.forEach((ex, ei) => {
-      const eSeries = Math.max(1, ex.seriesCount ?? 1);
-      for (let es = 0; es < eSeries; es++) {
-        // Paso de trabajo
-        const isTimed =
-          typeof ex.workingSeconds === "number" && ex.workingSeconds > 0;
-        steps.push({
-          kind: "work",
-          workoutSeriesIndex: ws,
-          exerciseIndex: ei,
-          exerciseSeriesIndex: es,
-          title: ex.name,
-          description: ex.description,
-          mediaUrl: ex.mediaUrl,
-          duration: isTimed ? ex.workingSeconds : undefined,
-          reps: !isTimed ? (ex.repetitionsCount ?? 10) : undefined,
-          isTimed,
-        });
-
-        // ¿Añadimos descanso?
-        const isLastExercise =
-          ei === workout.exercises.length - 1 && es === eSeries - 1;
-        const isLastWorkoutSeries = ws === wSeries - 1;
-        const shouldSkipRest = isLastExercise && isLastWorkoutSeries; // último descanso no se cuenta
-
-        const restDur = Math.max(0, ex.restingSeconds ?? 0);
-
-        if (!shouldSkipRest && restDur > 0) {
-          steps.push({
-            kind: "rest",
-            workoutSeriesIndex: ws,
-            exerciseIndex: ei,
-            exerciseSeriesIndex: es,
-            title: "Descanso",
-            duration: restDur,
-          });
-        }
-      }
-    });
-  }
-  return steps;
-}
-
-// Estima duración total sólo con partes cronometradas (para el listado)
-function estimateTotalSeconds(workout: Workout): number {
-  const steps = buildSteps(workout);
-  return steps.reduce(
-    (acc, s) =>
-      acc +
-      (s.kind === "work" && s.isTimed ? (s.duration ?? 0) : 0) +
-      (s.kind === "rest" ? s.duration : 0),
-    0,
-  );
-}
-
-function formatTime(sec: number) {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-// -----------------------------
-// Zustand Store
-// -----------------------------
-type Phase = "list" | "pre" | "work" | "rest" | "done";
-
-type AppState = {
+type State = {
   workouts: Workout[];
+  screen: Screen;
+
   selectedWorkoutId?: string;
-  phase: Phase;
-
-  // Pre-countdown (5s)
-  preRemaining: number;
-
-  // Secuencia lineal del workout seleccionado
-  steps: Step[];
   currentIndex: number;
+  phase: Phase;
+  secondsLeft: number; // para prestart, trabajo con tiempo y descansos
+  prestartSeconds: number;
+  paused: boolean;
 
-  // Temporizador del paso actual (si procede)
-  remaining: number; // segundos restantes del paso actual (solo si timed)
-  isPaused: boolean;
-
+  // Actions
   selectWorkout: (id: string) => void;
-  cancelToList: () => void;
-  startAfterPre: () => void;
-  nextStep: () => void;
+  startPrestart: () => void;
+  startWorkout: () => void;
   tick: () => void;
+  nextStepForReps: () => void;
   togglePause: () => void;
+  stopWorkout: () => void;
+  goHome: () => void;
+  setSecondsLeft: (n: number) => void;
 };
 
-const useAppStore = create<AppState>((set, get) => ({
-  workouts: WORKOUTS,
-  selectedWorkoutId: undefined,
-  phase: "list",
-  preRemaining: 5,
-  steps: [],
-  currentIndex: 0,
-  remaining: 0,
-  isPaused: false,
+const useStore = create<State>((set, get) => ({
+  // --- Workouts de prueba que cubren todas las casuísticas ---
+  workouts: [
+    {
+      id: "w1",
+      name: "HIIT Express",
+      dificultyLevel: 3,
+      exercises: [
+        {
+          name: "Jumping Jacks",
+          description:
+            "Activa el cuerpo con saltos abriendo y cerrando piernas y brazos.",
+          mediaUrl:
+            "https://images.unsplash.com/photo-1605296867304-46d5465a13f1?q=80&w=1200&auto=format&fit=crop",
+          workingSeconds: 30,
+          restingSeconds: 15,
+        },
+        {
+          name: "Sentadillas",
+          description: "Espalda recta, peso en talones.",
+          mediaUrl:
+            "https://images.unsplash.com/photo-1599058917212-d750089bc07e?q=80&w=1200&auto=format&fit=crop",
+          repetitionsCount: 15,
+          restingSeconds: 20,
+        },
+        {
+          name: "Plancha",
+          description: "Mantén el core apretado y la espalda alineada.",
+          mediaUrl:
+            "https://images.unsplash.com/photo-1599058918140-7e9d8d0d3e90?q=80&w=1200&auto=format&fit=crop",
+          workingSeconds: 45,
+          restingSeconds: 30,
+        },
+      ],
+    },
+    {
+      id: "w2",
+      name: "Fuerza Superior",
+      dificultyLevel: 4,
+      exercises: [
+        {
+          name: "Flexiones",
+          description: "Codos a 45°, pecho cerca del suelo.",
+          mediaUrl:
+            "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=1200&auto=format&fit=crop",
+          repetitionsCount: 12,
+          restingSeconds: 20,
+        },
+        {
+          name: "Fondos en banco",
+          description: "Hombros abajo y atrás.",
+          repetitionsCount: 12,
+          restingSeconds: 20,
+        },
+        {
+          name: "Plancha lateral",
+          description: "Mantén la cadera alta.",
+          workingSeconds: 30,
+          restingSeconds: 0, // (último: igualmente se omite descanso)
+        },
+      ],
+    },
+    {
+      id: "w3",
+      name: "Cardio Suave",
+      dificultyLevel: 2,
+      exercises: [
+        {
+          name: "Marcha en sitio",
+          description: "Eleva rodillas de forma controlada.",
+          workingSeconds: 40,
+          restingSeconds: 15,
+        },
+        {
+          name: "Elevaciones de rodilla",
+          description: "Alterna con ritmo constante.",
+          workingSeconds: 40,
+          restingSeconds: 15,
+        },
+        {
+          name: "Talones al glúteo",
+          description: "Mantén postura erguida.",
+          workingSeconds: 40,
+          // Si tuviera descanso, se omite por ser el último.
+        },
+      ],
+    },
+  ],
 
-  selectWorkout: (id) => {
-    const workout = WORKOUTS.find((w) => w.id === id);
-    if (!workout) return;
-    const steps = buildSteps(workout);
+  screen: "list",
+  selectedWorkoutId: undefined,
+  currentIndex: 0,
+  phase: "work",
+  secondsLeft: 0,
+  prestartSeconds: 5,
+  paused: false,
+
+  selectWorkout: (id) =>
     set({
       selectedWorkoutId: id,
-      phase: "pre",
-      preRemaining: 5,
-      steps,
+      screen: "prestart",
       currentIndex: 0,
-      remaining: 0,
-      isPaused: false,
-    });
-  },
-
-  cancelToList: () =>
-    set({
-      phase: "list",
-      selectedWorkoutId: undefined,
-      steps: [],
-      currentIndex: 0,
-      remaining: 0,
-      preRemaining: 5,
-      isPaused: false,
+      phase: "work",
+      secondsLeft: 5, // countdown de inicio
+      paused: false,
     }),
 
-  startAfterPre: () => {
-    const { steps } = get();
-    if (steps.length === 0) {
-      set({ phase: "done" });
-      return;
-    }
-    const step = steps[0];
-    set({
-      phase: step.kind,
-      remaining:
-        step.kind === "work" && step.isTimed
-          ? (step.duration ?? 0)
-          : step.kind === "rest"
-            ? step.duration
-            : 0,
-    });
-  },
+  startPrestart: () =>
+    set({ screen: "prestart", secondsLeft: 5, paused: false }),
 
-  nextStep: () => {
-    const { currentIndex, steps } = get();
-    const nextIdx = currentIndex + 1;
-    if (nextIdx >= steps.length) {
-      set({ phase: "done" });
-      return;
+  startWorkout: () => {
+    const { selectedWorkoutId, workouts } = get();
+    if (!selectedWorkoutId) return;
+    const w = workouts.find((x) => x.id === selectedWorkoutId)!;
+    const ex = w.exercises[0];
+    if (ex.workingSeconds) {
+      set({
+        screen: "running",
+        phase: "work",
+        secondsLeft: ex.workingSeconds,
+        paused: false,
+      });
+    } else {
+      // reps: sin tiempo; esperar botón Siguiente
+      set({ screen: "running", phase: "work", secondsLeft: 0, paused: false });
     }
-    const next = steps[nextIdx];
-    set({
-      currentIndex: nextIdx,
-      phase: next.kind,
-      remaining:
-        next.kind === "work" && next.isTimed
-          ? (next.duration ?? 0)
-          : next.kind === "rest"
-            ? next.duration
-            : 0,
-    });
   },
 
   tick: () => {
-    const { phase, preRemaining, remaining, isPaused } = get();
-    if (isPaused) return;
+    const { secondsLeft } = get();
+    if (secondsLeft > 0) set({ secondsLeft: secondsLeft - 1 });
+  },
 
-    if (phase === "pre") {
-      // beep cada segundo, largo cuando pase a 1
-      if (preRemaining <= 5 && preRemaining > 1) {
-        beeper.short();
-      } else if (preRemaining === 1) {
-        beeper.longWorkEnd();
-      }
-      if (preRemaining <= 1) {
-        set({ preRemaining: 0 });
-        get().startAfterPre();
-      } else {
-        set({ preRemaining: preRemaining - 1 });
-      }
+  setSecondsLeft: (n) => set({ secondsLeft: n }),
+
+  nextStepForReps: () => {
+    // Avanza (descanso / siguiente / fin) SOLO cuando el usuario pulse Siguiente.
+    const { selectedWorkoutId, workouts, currentIndex } = get();
+    if (!selectedWorkoutId) return;
+    const w = workouts.find((x) => x.id === selectedWorkoutId)!;
+    const ex = w.exercises[currentIndex];
+    const isLast = currentIndex >= w.exercises.length - 1;
+
+    if (isLast) {
+      set({ screen: "finished" });
       return;
     }
 
-    if (phase === "work" || phase === "rest") {
-      if (remaining > 0) {
-        // Pitido por segundo cuando hay tiempo
-        if (remaining > 1 && remaining <= 5) {
-          // en los últimos 5 segundos sigue pitando corto
-          beeper.short();
-        } else if (remaining === 1) {
-          const method =
-            phase === "work" ? beeper.longWorkEnd : beeper.longRestEnd;
-          method();
-        }
-        set({ remaining: remaining - 1 });
-      } else {
-        // TODO: Solo pasar si el ejercicio tiene tiempo
-        get().nextStep();
-      }
+    const rest = Math.max(0, ex.restingSeconds ?? 0);
+    if (rest > 0) {
+      set({ phase: "rest", secondsLeft: rest, paused: false });
+    } else {
+      const nextEx = w.exercises[currentIndex + 1];
+      set({
+        currentIndex: currentIndex + 1,
+        phase: "work",
+        secondsLeft: nextEx.workingSeconds ?? 0,
+        paused: false,
+      });
     }
   },
 
-  togglePause: () => set((s) => ({ isPaused: !s.isPaused })),
+  togglePause: () => set((s) => ({ paused: !s.paused })),
+
+  stopWorkout: () =>
+    set({
+      screen: "list",
+      selectedWorkoutId: undefined,
+      currentIndex: 0,
+      phase: "work",
+      secondsLeft: 0,
+      paused: false,
+    }),
+
+  goHome: () =>
+    set({
+      screen: "list",
+      selectedWorkoutId: undefined,
+      currentIndex: 0,
+      phase: "work",
+      secondsLeft: 0,
+      paused: false,
+    }),
 }));
 
-// -----------------------------
-// Hook de intervalo 1s
-// -----------------------------
-function useOneSecondTicker() {
-  const tick = useAppStore((s) => s.tick);
-  useEffect(() => {
-    const id = setInterval(() => tick(), 1000);
-    return () => clearInterval(id);
-  }, [tick]);
+/** ---------------------- Sonidos (pitidos) ---------------------- */
+function useBeep() {
+  const ctxRef = useRef<AudioContext | null>(null);
+
+  const ensureCtx = () => {
+    if (!ctxRef.current) {
+      const Ctx = (window.AudioContext ||
+        (window as any).webkitAudioContext) as typeof AudioContext;
+      ctxRef.current = new Ctx();
+    }
+    if (ctxRef.current?.state === "suspended") {
+      ctxRef.current.resume();
+    }
+    return ctxRef.current!;
+  };
+
+  const beep = (
+    freq = 880,
+    durationMs = 180,
+    type: OscillatorType = "sine",
+    volume = 0.2,
+  ) => {
+    try {
+      const ctx = ensureCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.value = volume;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      setTimeout(() => {
+        osc.stop();
+        osc.disconnect();
+        gain.disconnect();
+      }, durationMs);
+    } catch {
+      // ignorar si autoplay bloquea
+    }
+  };
+
+  const tickBeep = () => beep(1000, 120, "square", 0.15); // corto
+  const longBeep = () => beep(700, 500, "sine", 0.25); // largo (cuando queda 1s)
+
+  return { tickBeep, longBeep, beep };
 }
 
-// -----------------------------
-// UI Components (en el mismo archivo para facilitar copy-paste)
-// -----------------------------
+/** ---------------------- Utilidades ---------------------- */
+const fmt = (total: number) => {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+};
 
-function WorkoutList() {
-  const workouts = useAppStore((s) => s.workouts);
-  const selectWorkout = useAppStore((s) => s.selectWorkout);
+const DifficultyDots: React.FC<{ level: number }> = ({ level }) => (
+  <div className="flex gap-1">
+    {[1, 2, 3, 4, 5].map((n) => (
+      <span
+        key={n}
+        className={`inline-block h-2 w-2 rounded-full ${n <= level ? "bg-amber-500" : "bg-gray-300"}`}
+      />
+    ))}
+  </div>
+);
 
-  return (
-    <div className="max-w-md mx-auto p-4 space-y-3">
-      <h1 className="text-2xl font-bold">Workouts</h1>
-      <div className="grid grid-cols-1 gap-3">
-        {workouts.map((w) => {
-          const est = estimateTotalSeconds(w);
-          const stepsCount = buildSteps(w).length;
-          return (
-            <button
-              key={w.id}
-              onClick={() => selectWorkout(w.id)}
-              className="text-left rounded-2xl p-4 shadow hover:shadow-md bg-white border border-slate-100"
-            >
-              <div className="flex items-center justify-between">
-                <div className="font-semibold">{w.name}</div>
-                <div className="text-yellow-500">
-                  {stars(w.dificultyLevel as Dificulty)}
-                </div>
-              </div>
-              <div className="text-sm text-slate-500 mt-1">
-                {w.exercises.length} ejercicios · {stepsCount} pasos · ~
-                {formatTime(est)}
-              </div>
-              {w.seriesCount > 1 && (
-                <div className="text-xs text-slate-500 mt-1">
-                  Series del workout: x{w.seriesCount}
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
-      <p className="text-xs text-slate-500">
-        Consejo: activa el sonido del móvil para los pitidos ⏱️🔊
+/** ---------------------- App ---------------------- */
+const App: React.FC = () => {
+  const {
+    workouts,
+    screen,
+    selectedWorkoutId,
+    currentIndex,
+    phase,
+    secondsLeft,
+    paused,
+    selectWorkout,
+    startWorkout,
+    tick,
+    nextStepForReps,
+    togglePause,
+    stopWorkout,
+    goHome,
+    setSecondsLeft,
+  } = useStore();
+
+  const selectedWorkout = useMemo(
+    () => workouts.find((w) => w.id === selectedWorkoutId),
+    [workouts, selectedWorkoutId],
+  );
+
+  const { tickBeep, longBeep } = useBeep();
+
+  // Timer global (prestart, trabajo con tiempo, descanso)
+  useEffect(() => {
+    if (screen === "list" || screen === "finished") return;
+    if (paused) return;
+    if (secondsLeft > 0) {
+      const id = setInterval(() => useStore.getState().tick(), 1000);
+      return () => clearInterval(id);
+    }
+  }, [screen, secondsLeft, paused, tick]);
+
+  // Pitidos por cada segundo y pitido largo al quedar 1s (solo cuando hay countdown activo)
+  const prevSecRef = useRef<number>(secondsLeft);
+  useEffect(() => {
+    const prev = prevSecRef.current;
+    if (secondsLeft !== prev) {
+      if (secondsLeft > 1 && secondsLeft <= 5) tickBeep();
+      else if (secondsLeft === 1) longBeep();
+      prevSecRef.current = secondsLeft;
+    }
+  }, [secondsLeft, tickBeep, longBeep]);
+
+  // Al terminar el prestart, empezar workout
+  useEffect(() => {
+    if (screen === "prestart" && secondsLeft === 0) startWorkout();
+  }, [screen, secondsLeft, startWorkout]);
+
+  // Transiciones al llegar a 0: SOLO para (trabajo con tiempo) o (descanso)
+  useEffect(() => {
+    if (screen !== "running" || secondsLeft !== 0) return;
+    if (!selectedWorkout) return;
+
+    const ex = selectedWorkout.exercises[currentIndex];
+    const isTimeExercise = !!ex.workingSeconds;
+    const isLast = currentIndex >= selectedWorkout.exercises.length - 1;
+
+    if (phase === "work" && !isTimeExercise) {
+      // Ejercicio por reps: NO auto-avanzar; esperar botón Siguiente
+      return;
+    }
+
+    if (phase === "work") {
+      const rest = Math.max(0, ex.restingSeconds ?? 0);
+      if (!isLast && rest > 0) {
+        useStore.setState({ phase: "rest", secondsLeft: rest, paused: false });
+      } else {
+        if (isLast) {
+          useStore.setState({ screen: "finished" });
+        } else {
+          const nextEx = selectedWorkout.exercises[currentIndex + 1];
+          useStore.setState({
+            currentIndex: currentIndex + 1,
+            phase: "work",
+            secondsLeft: nextEx.workingSeconds ?? 0,
+            paused: false,
+          });
+        }
+      }
+    } else if (phase === "rest") {
+      if (isLast) {
+        useStore.setState({ screen: "finished" });
+      } else {
+        const nextEx = selectedWorkout.exercises[currentIndex + 1];
+        useStore.setState({
+          currentIndex: currentIndex + 1,
+          phase: "work",
+          secondsLeft: nextEx.workingSeconds ?? 0,
+          paused: false,
+        });
+      }
+    }
+  }, [screen, secondsLeft, phase, currentIndex, selectedWorkout]);
+
+  // Derivados UI
+  const ex = selectedWorkout?.exercises[currentIndex];
+  const isTimeExercise = !!ex?.workingSeconds;
+  const totalExercises = selectedWorkout?.exercises.length ?? 0;
+
+  // Progreso global (suave durante trabajo con tiempo; estático en reps/rest)
+  const globalProgress = useMemo(() => {
+    if (!selectedWorkout) return 0;
+    const base = currentIndex / selectedWorkout.exercises.length;
+    if (
+      screen === "running" &&
+      phase === "work" &&
+      isTimeExercise &&
+      ex?.workingSeconds
+    ) {
+      const done = ex.workingSeconds - secondsLeft;
+      const frac = Math.min(1, Math.max(0, done / ex.workingSeconds));
+      return Math.min(1, base + frac / selectedWorkout.exercises.length);
+    }
+    return base;
+  }, [
+    selectedWorkout,
+    currentIndex,
+    phase,
+    ex,
+    isTimeExercise,
+    secondsLeft,
+    screen,
+  ]);
+
+  // Color de fondo (trabajo=azul, descanso=verde)
+  const workoutBg =
+    screen === "running"
+      ? phase === "rest"
+        ? "bg-green-600"
+        : "bg-blue-600"
+      : "bg-white";
+
+  /** ---------------------- Pantallas ---------------------- */
+
+  const ListScreen = (
+    <div className="max-w-md mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">🏋️ Workout</h1>
+      <p className="text-sm text-gray-600 mb-4">
+        Elige un <strong>workout</strong> para comenzar. Al pulsar verás un
+        countdown de 5s con pitidos. En el último segundo, sonará un pitido
+        largo de inicio.
       </p>
+      <div className="space-y-3">
+        {workouts.map((w) => (
+          <button
+            key={w.id}
+            onClick={() => selectWorkout(w.id)}
+            className="w-full rounded-xl border border-gray-200 p-4 text-left hover:bg-gray-50 active:bg-gray-100 transition"
+          >
+            <div className="flex items-center justify-between">
+              <div className="font-semibold">{w.name}</div>
+              <DifficultyDots level={w.dificultyLevel} />
+            </div>
+            <div className="mt-2 text-xs text-gray-500">
+              {w.exercises.length} ejercicios •{" "}
+              {w.exercises.some((e) => e.workingSeconds)
+                ? "Con tiempo"
+                : "Sólo repeticiones"}
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
-}
 
-function PreCountdown() {
-  const pre = useAppStore((s) => s.preRemaining);
-  const cancel = useAppStore((s) => s.cancelToList);
+  const PrestartScreen = (
+    <div className="max-w-md mx-auto p-4">
+      <h2 className="text-xl font-semibold mb-2">{selectedWorkout?.name}</h2>
+      <div className="text-sm text-gray-600 mb-6">
+        Comenzamos en <span className="font-semibold">{secondsLeft}s</span>…
+      </div>
+      <div className="flex items-center justify-center my-10">
+        <div className="w-40 h-40 rounded-full bg-gray-100 flex items-center justify-center text-5xl font-bold">
+          {secondsLeft}
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button
+          onClick={stopWorkout}
+          className="flex-1 rounded-xl border border-gray-300 px-4 py-3 font-medium"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => setSecondsLeft(1)} // para pruebas: salta prestart (emitirá pitido largo)
+          className="flex-1 rounded-xl bg-blue-600 text-white px-4 py-3 font-semibold"
+        >
+          Saltar a inicio
+        </button>
+      </div>
+    </div>
+  );
 
-  return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        <div className="rounded-3xl bg-slate-800 p-6 shadow-lg text-center">
-          <div className="text-slate-300 mb-2">Prepárate</div>
-          <div className="text-7xl font-black leading-none">{pre}</div>
-          <div className="mt-4 text-sm text-slate-300">
-            Comenzamos cuando llegue a 0 (pitido largo).
+  const RunningScreen = (
+    <div className={`min-h-[100dvh] ${workoutBg} text-white`}>
+      <div className="max-w-md mx-auto p-4 pb-24">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={stopWorkout}
+            className="rounded-lg bg-white/10 hover:bg-white/20 px-3 py-2 text-sm"
+          >
+            Parar
+          </button>
+          <div className="text-sm opacity-90">
+            {selectedWorkout?.name} • #{currentIndex + 1}/{totalExercises}
           </div>
           <button
-            onClick={cancel}
-            className="mt-6 w-full rounded-xl bg-slate-700 py-3 font-semibold"
+            onClick={togglePause}
+            className="rounded-lg bg-white/10 hover:bg-white/20 px-3 py-2 text-sm"
           >
-            Cancelar
+            {paused ? "Reanudar" : "Pausa"}
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
 
-function ProgressBar({ value }: { value: number }) {
-  return (
-    <div className="w-full h-3 bg-white/30 rounded-full overflow-hidden">
-      <div
-        className="h-full bg-white/90"
-        style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
-      />
-    </div>
-  );
-}
-
-function CurrentStepCard() {
-  const steps = useAppStore((s) => s.steps);
-  const idx = useAppStore((s) => s.currentIndex);
-  const step = steps[idx] as Step | undefined;
-
-  const nextStep = useAppStore((s) => s.nextStep);
-  const togglePause = useAppStore((s) => s.togglePause);
-  const cancel = useAppStore((s) => s.cancelToList);
-
-  const remaining = useAppStore((s) => s.remaining);
-  const isPaused = useAppStore((s) => s.isPaused);
-
-  // Global progress
-  const globalProgress = useMemo(() => {
-    if (steps.length === 0) return 0;
-    const current = steps[idx];
-    let frac = 0;
-    if (
-      current?.kind === "work" &&
-      current.isTimed &&
-      current.duration &&
-      current.duration > 0
-    ) {
-      frac = (current.duration - remaining) / current.duration;
-    } else if (current?.kind === "rest" && current.duration > 0) {
-      frac = (current.duration - remaining) / current.duration;
-    } else {
-      frac = 0; // por reps, sin subprogreso
-    }
-    const value = ((idx + frac) / steps.length) * 100;
-    return Math.max(0, Math.min(100, value));
-  }, [steps, idx, remaining]);
-
-  if (!step) return null;
-
-  const isWork = step.kind === "work";
-  const bg = isWork ? "bg-blue-600" : "bg-green-600";
-  const bgSoft = isWork ? "bg-blue-500" : "bg-green-500";
-  const showTimer =
-    (isWork && step.isTimed && typeof step.duration === "number") ||
-    (!isWork && typeof step.duration === "number");
-
-  const currentTimerTotal =
-    isWork && step.isTimed ? (step.duration ?? 0) : !isWork ? step.duration : 0;
-
-  const currentTimerProgress =
-    showTimer && currentTimerTotal && currentTimerTotal > 0
-      ? ((currentTimerTotal - remaining) / currentTimerTotal) * 100
-      : 0;
-
-  const headerLabel = isWork ? "Trabajando" : "Descanso";
-
-  return (
-    <div className={`min-h-screen ${bg} text-white flex flex-col p-4`}>
-      <div className="max-w-md w-full mx-auto flex-1 flex flex-col gap-4">
         {/* Progreso global */}
-        <div className="pt-2">
-          <ProgressBar value={globalProgress} />
+        <div className="mt-4 w-full h-2 bg-white/20 rounded-full overflow-hidden">
+          <div
+            className="h-2 bg-white/80"
+            style={{ width: `${Math.round(globalProgress * 100)}%` }}
+          />
         </div>
 
-        {/* Tarjeta principal */}
-        <div className="rounded-3xl bg-white/10 backdrop-blur p-4 shadow-lg flex-1 flex flex-col">
-          <div className="flex items-center justify-between">
-            <span className="uppercase tracking-wide text-white/80 text-xs">
-              {headerLabel}
-            </span>
-            <button
-              onClick={togglePause}
-              className="text-xs bg-white/20 px-3 py-1 rounded-full"
-            >
-              {isPaused ? "Reanudar" : "Pausar"}
-            </button>
-          </div>
-
+        {/* Card */}
+        <div className="mt-6 rounded-2xl bg-white text-gray-900 overflow-hidden shadow-lg">
           {/* Media / Descanso */}
-          <div className="mt-3 rounded-2xl overflow-hidden bg-black/20 aspect-[16/10] flex items-center justify-center">
-            {isWork ? (
-              (step as Extract<Step, { kind: "work" }>).mediaUrl ? (
-                <img
-                  src={(step as Extract<Step, { kind: "work" }>).mediaUrl}
-                  alt={(step as Extract<Step, { kind: "work" }>).title}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="text-white/70 text-sm">Sin imagen</div>
-              )
-            ) : (
-              <div className="text-3xl font-bold">DESCANSO</div>
-            )}
-          </div>
-
-          {/* Título y descripción */}
-          <div className="mt-4">
-            <div className="text-xl font-bold leading-tight">
-              {isWork ? step.title : "Descanso"}
-            </div>
-            <div className="text-white/80 text-sm mt-1">
-              {isWork
-                ? (step as any).description
-                : "Respira y prepárate para el siguiente ejercicio."}
-            </div>
-          </div>
-
-          {/* Controles / Info */}
-          <div className="mt-auto">
-            {isWork && !step.isTimed ? (
-              // Ejercicio por repeticiones
-              <div className="space-y-3">
-                <div className="text-5xl font-black text-center">
-                  {step.reps ?? 0} reps
+          {phase === "rest" ? (
+            <div className="h-48 sm:h-56 w-full flex items-center justify-center bg-green-100">
+              <div className="text-center">
+                <div className="text-2xl font-bold mb-1">Descanso</div>
+                <div className="text-sm text-gray-600">
+                  Próximo:{" "}
+                  <span className="font-medium">
+                    {selectedWorkout?.exercises[currentIndex + 1]?.name ?? "—"}
+                  </span>
                 </div>
+              </div>
+            </div>
+          ) : ex?.mediaUrl ? (
+            <img
+              src={ex.mediaUrl}
+              alt={ex.name}
+              className="h-48 sm:h-56 w-full object-cover"
+              draggable={false}
+            />
+          ) : (
+            <div className="h-48 sm:h-56 w-full flex items-center justify-center bg-gray-100">
+              <span className="text-2xl">💪</span>
+            </div>
+          )}
+
+          {/* Contenido */}
+          <div className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xl font-semibold">
+                  {phase === "rest" ? "Descanso" : ex?.name}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {phase === "rest" ? "Respira y prepárate." : ex?.description}
+                </div>
+              </div>
+              <div className="text-right">
+                {/* Timer / Reps label */}
+                {phase === "rest" || isTimeExercise ? (
+                  <div className="rounded-lg bg-gray-900 text-white px-3 py-2 inline-block">
+                    <div className="text-xs opacity-70 text-right">Tiempo</div>
+                    <div className="text-2xl font-mono">{fmt(secondsLeft)}</div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg bg-gray-900 text-white px-3 py-2 inline-block">
+                    <div className="text-xs opacity-70 text-right">Reps</div>
+                    <div className="text-2xl font-semibold">
+                      {ex?.repetitionsCount}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Progreso del ejercicio (solo si es por tiempo) */}
+            {phase === "work" && isTimeExercise && ex?.workingSeconds ? (
+              <div className="mt-4">
+                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-2 bg-blue-600"
+                    style={{
+                      width: `${Math.round(
+                        ((ex.workingSeconds - secondsLeft) /
+                          ex.workingSeconds) *
+                          100,
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {/* Controles */}
+            <div className="mt-6 flex gap-3">
+              {phase === "work" && !isTimeExercise ? (
                 <button
-                  onClick={nextStep}
-                  className={`w-full ${bgSoft} py-3 rounded-xl font-semibold`}
+                  onClick={nextStepForReps}
+                  className="flex-1 rounded-xl bg-blue-600 text-white px-4 py-3 font-semibold"
                 >
                   Siguiente
                 </button>
-              </div>
-            ) : (
-              // Temporizador (work o rest)
-              <div className="space-y-3">
-                <div className="text-6xl font-black text-center tabular-nums">
-                  {formatTime(remaining)}
-                </div>
-                <ProgressBar value={currentTimerProgress} />
-              </div>
-            )}
-
-            {/* Indicadores de series/posición */}
-            <StepBreadcrumb />
+              ) : (
+                <button
+                  onClick={() => useStore.setState({ paused: !paused })}
+                  className="flex-1 rounded-xl border border-gray-300 px-4 py-3 font-medium"
+                >
+                  {paused ? "Reanudar" : "Pausar"}
+                </button>
+              )}
+            </div>
           </div>
+        </div>
 
-          {/* Cancelar */}
-          <button
-            onClick={cancel}
-            className="mt-4 w-full rounded-xl bg-white/15 py-3 font-semibold"
-          >
-            Cancelar
-          </button>
+        {/* Hint */}
+        <div className="mt-4 text-xs text-white/80 text-center">
+          {phase === "rest"
+            ? "La imagen se oculta durante el descanso. Mira el siguiente ejercicio."
+            : isTimeExercise
+              ? "Barra superior: progreso global. Barra azul: progreso del ejercicio."
+              : "Ejercicio por repeticiones: pulsa “Siguiente” cuando termines."}
         </div>
       </div>
     </div>
   );
-}
 
-function StepBreadcrumb() {
-  const steps = useAppStore((s) => s.steps);
-  const idx = useAppStore((s) => s.currentIndex);
-
-  if (steps.length === 0) return null;
-
-  const step = steps[idx];
-
-  // Totales para mostrar contexto
-  const totalSteps = steps.length;
-
-  // Buscar el workout real para contar series totales del workout y del ejercicio
-  const workout = useAppStore((s) =>
-    s.workouts.find((w) => w.id === s.selectedWorkoutId),
-  );
-
-  const ex = workout?.exercises[step.exerciseIndex];
-  const exSeriesTotal = Math.max(1, ex?.seriesCount ?? 1);
-  const wSeriesTotal = Math.max(1, workout?.seriesCount ?? 1);
-
-  return (
-    <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-white/80">
-      <div className="rounded-lg bg-white/10 p-2">
-        <div className="uppercase opacity-80">Paso</div>
-        <div className="font-semibold">
-          {idx + 1}/{totalSteps}
-        </div>
-      </div>
-      <div className="rounded-lg bg-white/10 p-2">
-        <div className="uppercase opacity-80">Serie ej.</div>
-        <div className="font-semibold">
-          {step.exerciseSeriesIndex + 1}/{exSeriesTotal}
-        </div>
-      </div>
-      <div className="rounded-lg bg-white/10 p-2">
-        <div className="uppercase opacity-80">Serie W.</div>
-        <div className="font-semibold">
-          {step.workoutSeriesIndex + 1}/{wSeriesTotal}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// -----------------------------
-// Pantalla DONE
-// -----------------------------
-function DoneScreen() {
-  const cancel = useAppStore((s) => s.cancelToList);
-  const workout = useAppStore((s) =>
-    s.workouts.find((w) => w.id === s.selectedWorkoutId),
-  );
-  useEffect(() => {
-    // Un último beep de celebración
-    beeper.beep({ freq: 1600, durationMs: 250, type: "square", volume: 0.25 });
-    setTimeout(
-      () =>
-        beeper.beep({
-          freq: 900,
-          durationMs: 250,
-          type: "square",
-          volume: 0.25,
-        }),
-      300,
-    );
-    setTimeout(
-      () =>
-        beeper.beep({
-          freq: 1600,
-          durationMs: 250,
-          type: "square",
-          volume: 0.25,
-        }),
-      600,
-    );
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4">
-      <div className="max-w-md w-full rounded-3xl bg-slate-800 p-6 text-center shadow-lg">
-        <div className="text-sm text-slate-300">¡Completado!</div>
-        <div className="text-2xl font-bold mt-1">{workout?.name}</div>
-        <div className="mt-4 text-sm text-slate-300">
-          Buen trabajo. Hidrátate y estira un poco.
-        </div>
+  const FinishedScreen = (
+    <div className="min-h-[100dvh] bg-purple-600 text-white flex items-center">
+      <div className="max-w-md mx-auto p-6 text-center">
+        <div className="text-6xl mb-4">🎉</div>
+        <h2 className="text-2xl font-bold mb-2">¡Workout completado!</h2>
+        <p className="opacity-90">
+          Buen trabajo con{" "}
+          <span className="font-semibold">{selectedWorkout?.name}</span>.
+        </p>
         <button
-          onClick={cancel}
-          className="mt-6 w-full rounded-xl bg-white/15 py-3 font-semibold"
+          onClick={goHome}
+          className="mt-8 w-full rounded-xl bg-white text-purple-700 px-4 py-3 font-semibold"
         >
           Volver al listado
         </button>
       </div>
     </div>
   );
-}
 
-// -----------------------------
-// App (root component)
-// -----------------------------
-export default function App() {
-  const phase = useAppStore((s) => s.phase);
-  const selected = useAppStore((s) => s.selectedWorkoutId);
-  const steps = useAppStore((s) => s.steps);
-  const currentIndex = useAppStore((s) => s.currentIndex);
-  const startAfterPre = useAppStore((s) => s.startAfterPre);
+  // Render root
+  return (
+    <div className="min-h-[100dvh] bg-white">
+      {screen === "list" && ListScreen}
+      {screen === "prestart" && PrestartScreen}
+      {screen === "running" && RunningScreen}
+      {screen === "finished" && FinishedScreen}
+    </div>
+  );
+};
 
-  useOneSecondTicker();
+export default App;
 
-  // Arranque automático del primer paso tras el pre-countdown (por si el usuario vuelve al tab)
-  const bootOnceRef = useRef(false);
-  useEffect(() => {
-    if (phase === "pre" || bootOnceRef.current) return;
-    if (
-      phase === "work" ||
-      phase === "rest" ||
-      phase === "done" ||
-      phase === "list"
-    )
-      return;
-    bootOnceRef.current = true;
-    startAfterPre();
-  }, [phase, startAfterPre]);
-
-  // Accesible: anuncia cambios de paso
-  useEffect(() => {
-    if (!steps.length) return;
-    const cur = steps[currentIndex];
-    document.title =
-      phase === "list"
-        ? "Workout"
-        : cur.kind === "work"
-          ? `▶️ ${cur.title}`
-          : "⏸️ Descanso";
-  }, [steps, currentIndex, phase]);
-
-  if (phase === "list") return <WorkoutList />;
-  if (phase === "pre") return <PreCountdown />;
-  if (phase === "done") return <DoneScreen />;
-  // work/rest
-  return <CurrentStepCard />;
-}
+/**
+ * Notas:
+ * - Ejercicios por reps: NO auto-avanzan; se avanza solo con el botón “Siguiente”.
+ * - Pitidos: countdowns (prestart, trabajo con tiempo, descanso) tienen beeps cortos + largo al quedar 1s.
+ * - Descanso: oculta imagen, muestra el siguiente ejercicio. El descanso del último ejercicio se omite.
+ * - Fondo: azul trabajando, verde descansando.
+ * - Progreso: barra global + barra del ejercicio si es por tiempo.
+ */
