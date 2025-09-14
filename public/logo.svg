@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="410" height="404" viewBox="0 0 410 404" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Workout app logo: athlete lifting barbell">
+  <!-- Background rounded rectangle -->
+  <rect x="6" y="6" rx="72" ry="72" width="398" height="392" fill="#0EA5E9"/>
+
+  <!-- Athlete with barbell (white, minimalist) -->
+  <!-- Head -->
+  <circle cx="205" cy="130" r="26" fill="#FFFFFF"/>
+
+  <!-- Bar (behind the head/shoulders) -->
+  <rect x="70" y="160" width="270" height="16" rx="8" fill="#FFFFFF"/>
+
+  <!-- Plates left -->
+  <circle cx="82" cy="168" r="28" fill="#FFFFFF"/>
+  <circle cx="108" cy="168" r="18" fill="#0EA5E9"/>
+  <!-- Plates right -->
+  <circle cx="338" cy="168" r="28" fill="#FFFFFF"/>
+  <circle cx="312" cy="168" r="18" fill="#0EA5E9"/>
+
+  <!-- Shoulders / arms -->
+  <path d="M140 190 C150 175, 175 168, 190 175 L200 195 C185 205, 170 212, 150 210 Z" fill="#FFFFFF"/>
+  <path d="M270 190 C260 175, 235 168, 220 175 L210 195 C225 205, 240 212, 260 210 Z" fill="#FFFFFF"/>
+
+  <!-- Torso -->
+  <path d="M175 205 C175 190, 235 190, 235 205 L235 250 C235 265, 175 265, 175 250 Z" fill="#FFFFFF"/>
+
+  <!-- Shorts -->
+  <path d="M160 250 C165 245, 190 242, 205 242 C220 242, 245 245, 250 250 L250 270 C240 268, 220 266, 205 266 C190 266, 170 268, 160 270 Z" fill="#FFFFFF"/>
+
+  <!-- Legs (squat position) -->
+  <path d="M160 270 C150 295, 150 325, 150 350 L170 350 C172 330, 178 315, 185 300 L185 280 Z" fill="#FFFFFF"/>
+  <path d="M250 270 C260 295, 260 325, 260 350 L240 350 C238 330, 232 315, 225 300 L225 280 Z" fill="#FFFFFF"/>
+
+  <!-- Shoes -->
+  <path d="M140 350 C150 350, 168 354, 180 360 C183 364, 178 372, 170 372 L138 372 C132 372, 130 366, 134 360 C136 356, 138 350, 140 350 Z" fill="#FFFFFF"/>
+  <path d="M270 350 C260 350, 242 354, 230 360 C227 364, 232 372, 240 372 L272 372 C278 372, 280 366, 276 360 C274 356, 272 350, 270 350 Z" fill="#FFFFFF"/>
+
+  <!-- Accent highlights (optional) -->
+  <path d="M205 125 a24 24 0 0 1 0 10" stroke="#0EA5E9" stroke-width="4" stroke-linecap="round"/>
+</svg>
