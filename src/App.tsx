@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { create } from "zustand";
+import { useKeepAwake } from "./hooks/useKeepAwake";
+import workouts from "./workouts.json";
 
 /**
  * -----------------------------------------------------------
@@ -53,92 +55,7 @@ type State = {
 
 const useStore = create<State>((set, get) => ({
   // --- Workouts de prueba que cubren todas las casuísticas ---
-  workouts: [
-    {
-      id: "w1",
-      name: "HIIT Express",
-      dificultyLevel: 3,
-      exercises: [
-        {
-          name: "Jumping Jacks",
-          description:
-            "Activa el cuerpo con saltos abriendo y cerrando piernas y brazos.",
-          mediaUrl:
-            "https://images.unsplash.com/photo-1605296867304-46d5465a13f1?q=80&w=1200&auto=format&fit=crop",
-          workingSeconds: 30,
-          restingSeconds: 15,
-        },
-        {
-          name: "Sentadillas",
-          description: "Espalda recta, peso en talones.",
-          mediaUrl:
-            "https://images.unsplash.com/photo-1599058917212-d750089bc07e?q=80&w=1200&auto=format&fit=crop",
-          repetitionsCount: 15,
-          restingSeconds: 20,
-        },
-        {
-          name: "Plancha",
-          description: "Mantén el core apretado y la espalda alineada.",
-          mediaUrl:
-            "https://images.unsplash.com/photo-1599058918140-7e9d8d0d3e90?q=80&w=1200&auto=format&fit=crop",
-          workingSeconds: 45,
-          restingSeconds: 30,
-        },
-      ],
-    },
-    {
-      id: "w2",
-      name: "Fuerza Superior",
-      dificultyLevel: 4,
-      exercises: [
-        {
-          name: "Flexiones",
-          description: "Codos a 45°, pecho cerca del suelo.",
-          mediaUrl:
-            "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=1200&auto=format&fit=crop",
-          repetitionsCount: 12,
-          restingSeconds: 20,
-        },
-        {
-          name: "Fondos en banco",
-          description: "Hombros abajo y atrás.",
-          repetitionsCount: 12,
-          restingSeconds: 20,
-        },
-        {
-          name: "Plancha lateral",
-          description: "Mantén la cadera alta.",
-          workingSeconds: 30,
-          restingSeconds: 0, // (último: igualmente se omite descanso)
-        },
-      ],
-    },
-    {
-      id: "w3",
-      name: "Cardio Suave",
-      dificultyLevel: 2,
-      exercises: [
-        {
-          name: "Marcha en sitio",
-          description: "Eleva rodillas de forma controlada.",
-          workingSeconds: 40,
-          restingSeconds: 15,
-        },
-        {
-          name: "Elevaciones de rodilla",
-          description: "Alterna con ritmo constante.",
-          workingSeconds: 40,
-          restingSeconds: 15,
-        },
-        {
-          name: "Talones al glúteo",
-          description: "Mantén postura erguida.",
-          workingSeconds: 40,
-          // Si tuviera descanso, se omite por ser el último.
-        },
-      ],
-    },
-  ],
+  workouts: workouts as Workout[],
 
   screen: "list",
   selectedWorkoutId: undefined,
@@ -328,6 +245,7 @@ const App: React.FC = () => {
   );
 
   const { tickBeep, longBeep } = useBeep();
+  const screenLock = useKeepAwake();
 
   // Timer global (prestart, trabajo con tiempo, descanso)
   useEffect(() => {
@@ -357,6 +275,10 @@ const App: React.FC = () => {
 
   // Transiciones al llegar a 0: SOLO para (trabajo con tiempo) o (descanso)
   useEffect(() => {
+    // Gestionar Screen Wake Lock
+    if (phase === "work") screenLock.request();
+    else screenLock.release();
+
     if (screen !== "running" || secondsLeft !== 0) return;
     if (!selectedWorkout) return;
 

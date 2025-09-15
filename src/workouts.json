@@ -1,0 +1,163 @@
+[
+  {
+    "id": "w1",
+    "name": "Lunes – Fuerza Tren Superior",
+    "dificultyLevel": 4,
+    "exercises": [
+      {
+        "name": "Press Banca",
+        "description": "Extiende codos completos, toca el pecho en cada repetición. Peso moderado.",
+        "mediaUrl": "https://images.unsplash.com/photo-1605296867304-46d5465a13f1?q=80&w=1200&auto=format&fit=crop",
+        "repetitionsCount": 8,
+        "restingSeconds": 90
+      },
+      {
+        "name": "Dominadas",
+        "description": "Agarre prono, barbilla sobre la barra, core firme.",
+        "mediaUrl": "https://images.unsplash.com/photo-1571019613575-0f1f4c7d4bde?q=80&w=1200&auto=format&fit=crop",
+        "repetitionsCount": 6,
+        "restingSeconds": 90
+      },
+      {
+        "name": "Fondos en paralelas",
+        "description": "Mantén hombros abajo, evita balanceo.",
+        "mediaUrl": "https://images.unsplash.com/photo-1605296867485-6bc0f42b302f?q=80&w=1200&auto=format&fit=crop",
+        "repetitionsCount": 12,
+        "restingSeconds": 75
+      },
+      {
+        "name": "Plancha con toques de hombro",
+        "description": "Evita rotación de cadera, aprieta abdomen.",
+        "mediaUrl": "https://images.unsplash.com/photo-1599058918140-7e9d8d0d3e90?q=80&w=1200&auto=format&fit=crop",
+        "workingSeconds": 40,
+        "restingSeconds": 30
+      }
+    ]
+  },
+  {
+    "id": "w2",
+    "name": "Martes – Resistencia + Técnica",
+    "dificultyLevel": 3,
+    "exercises": [
+      {
+        "name": "Carrera continua",
+        "description": "40’ a ritmo cómodo (6’15’’-6’30’’/km).",
+        "mediaUrl": "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?q=80&w=1200&auto=format&fit=crop",
+        "workingSeconds": 2400,
+        "restingSeconds": 0
+      },
+      {
+        "name": "Sit and Reach",
+        "description": "Flexión controlada de tronco, piernas rectas, mantén 5 seg.",
+        "mediaUrl": "https://images.unsplash.com/photo-1599058918140-7e9d8d0d3e90?q=80&w=1200&auto=format&fit=crop",
+        "repetitionsCount": 5,
+        "restingSeconds": 20
+      }
+    ]
+  },
+  {
+    "id": "w3",
+    "name": "Miércoles – Tren Inferior + Cuerda",
+    "dificultyLevel": 4,
+    "exercises": [
+      {
+        "name": "Sentadilla goblet",
+        "description": "Espalda recta, baja al paralelo.",
+        "mediaUrl": "https://images.unsplash.com/photo-1605296867304-46d5465a13f1?q=80&w=1200&auto=format&fit=crop",
+        "repetitionsCount": 12,
+        "restingSeconds": 60
+      },
+      {
+        "name": "Peso muerto rumano",
+        "description": "Isquios estirados, barra cerca del cuerpo.",
+        "mediaUrl": "https://images.unsplash.com/photo-1599058917212-d750089bc07e?q=80&w=1200&auto=format&fit=crop",
+        "repetitionsCount": 10,
+        "restingSeconds": 75
+      },
+      {
+        "name": "Trepas de cuerda (técnica)",
+        "description": "Bloqueos cada 2 m, sin piernas, foco en agarre.",
+        "mediaUrl": "https://images.unsplash.com/photo-1605296867304-46d5465a13f1?q=80&w=1200&auto=format&fit=crop",
+        "workingSeconds": 20,
+        "restingSeconds": 90
+      },
+      {
+        "name": "Hanging knee raises",
+        "description": "Eleva rodillas controlado, core firme.",
+        "mediaUrl": "https://images.unsplash.com/photo-1571019613575-0f1f4c7d4bde?q=80&w=1200&auto=format&fit=crop",
+        "repetitionsCount": 12,
+        "restingSeconds": 60
+      }
+    ]
+  },
+  {
+    "id": "w4",
+    "name": "Jueves – Intervalos 2000m Prep",
+    "dificultyLevel": 5,
+    "exercises": [
+      {
+        "name": "Intervalos de carrera",
+        "description": "6x400m a ritmo 4’40’’-4’50’’/km, recuperación 2’ andando.",
+        "mediaUrl": "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?q=80&w=1200&auto=format&fit=crop",
+        "workingSeconds": 120,
+        "restingSeconds": 120
+      },
+      {
+        "name": "Skipping",
+        "description": "Elevación rápida de rodillas, postura erguida.",
+        "mediaUrl": "https://images.unsplash.com/photo-1599058918140-7e9d8d0d3e90?q=80&w=1200&auto=format&fit=crop",
+        "workingSeconds": 30,
+        "restingSeconds": 30
+      }
+    ]
+  },
+  {
+    "id": "w5",
+    "name": "Viernes – Explosividad + Velocidad",
+    "dificultyLevel": 4,
+    "exercises": [
+      {
+        "name": "Saltos pliométricos al banco",
+        "description": "Salta con potencia, aterriza suave, rodillas flexionadas.",
+        "mediaUrl": "https://images.unsplash.com/photo-1605296867485-6bc0f42b302f?q=80&w=1200&auto=format&fit=crop",
+        "repetitionsCount": 8,
+        "restingSeconds": 90
+      },
+      {
+        "name": "Sprints cortos",
+        "description": "6x60m a máxima velocidad, descanso 2’ entre repeticiones.",
+        "mediaUrl": "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?q=80&w=1200&auto=format&fit=crop",
+        "workingSeconds": 15,
+        "restingSeconds": 120
+      },
+      {
+        "name": "Russian Twists",
+        "description": "Mantén core firme, gira controlado.",
+        "mediaUrl": "https://images.unsplash.com/photo-1599058917212-d750089bc07e?q=80&w=1200&auto=format&fit=crop",
+        "repetitionsCount": 20,
+        "restingSeconds": 45
+      }
+    ]
+  },
+  {
+    "id": "w6",
+    "name": "Sábado – Fondo + Flexibilidad",
+    "dificultyLevel": 3,
+    "exercises": [
+      {
+        "name": "Rodaje largo",
+        "description": "50’ a ritmo suave (6’15’’-6’40’’/km).",
+        "mediaUrl": "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?q=80&w=1200&auto=format&fit=crop",
+        "workingSeconds": 3000,
+        "restingSeconds": 0
+      },
+      {
+        "name": "Estiramientos de isquios y lumbares",
+        "description": "Trabajo específico sit and reach, 3x30’’ por postura.",
+        "mediaUrl": "https://images.unsplash.com/photo-1599058918140-7e9d8d0d3e90?q=80&w=1200&auto=format&fit=crop",
+        "workingSeconds": 30,
+        "restingSeconds": 20
+      }
+    ]
+  }
+]
