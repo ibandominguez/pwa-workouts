@@ -9,8 +9,8 @@ export default defineConfig({
     tailwindcss(),
     react(),
     VitePWA({
-      registerType: "prompt",
-      injectRegister: false,
+      registerType: "autoUpdate",
+      injectRegister: "auto",
       useCredentials: true,
 
       pwaAssets: {
@@ -19,16 +19,46 @@ export default defineConfig({
       },
 
       manifest: {
-        name: "vite-pwa",
-        short_name: "vite-pwa",
-        description: "vite-pwa",
+        name: "Workouts",
+        short_name: "Workouts",
+        description: "Todos tus entrenamientos en un solo lugar",
         theme_color: "#ffffff",
+        background_color: "#ffffff",
+        display: "standalone",
+        start_url: "/",
+        scope: "/",
+        icons: [
+          { src: "pwa-192x192.png", sizes: "192x192", type: "image/png" },
+          { src: "pwa-512x512.png", sizes: "512x512", type: "image/png" },
+          {
+            src: "maskable-icon-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any maskable",
+          },
+        ],
       },
 
       workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,png,ico}"],
+        globPatterns: ["**/*.{js,css,html,svg,png,ico,webp,woff2}"],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
+        navigateFallback: "/index.html",
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: "StaleWhileRevalidate",
+            options: { cacheName: "google-fonts-styles" },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "google-fonts-webfonts",
+              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+        ],
       },
 
       devOptions: {
