@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/ban-ts-comment */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // Tipos parciales porque no todas las domlibs tipan wakeLock todavía
