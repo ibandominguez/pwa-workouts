@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import workoutsData from "./workouts.json";
 import { Workout, Phase, Screen } from "./types";
+import { validateWorkout } from "./utils/workoutValidation";
 
 type State = {
   workouts: Workout[];
@@ -22,10 +22,57 @@ type State = {
   stopWorkout: () => void;
   goHome: () => void;
   setSecondsLeft: (n: number) => void;
+  addWorkout: (workout: Workout) => void;
+  removeWorkout: (id: string) => void;
+};
+
+const WORKOUTS_STORAGE_KEY = "workouts";
+
+const loadStoredWorkouts = (): Workout[] => {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(WORKOUTS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    const validWorkouts: Workout[] = [];
+    for (const item of parsed) {
+      const result = validateWorkout(item);
+      if (result.ok) {
+        validWorkouts.push(result.workout);
+      }
+    }
+    return validWorkouts;
+  } catch (error) {
+    console.error("Error loading workouts from localStorage", error);
+    return [];
+  }
+};
+
+const persistWorkouts = (workouts: Workout[]) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      WORKOUTS_STORAGE_KEY,
+      JSON.stringify(workouts),
+    );
+  } catch (error) {
+    console.error("Error saving workouts to localStorage", error);
+  }
+};
+
+const resetSelectionState = {
+  screen: "list" as Screen,
+  selectedWorkoutId: undefined,
+  currentIndex: 0,
+  phase: "work" as Phase,
+  secondsLeft: 0,
+  paused: false,
 };
 
 export const useStore = create<State>((set, get) => ({
-  workouts: workoutsData as Workout[],
+  workouts: loadStoredWorkouts(),
 
   screen: "list",
   selectedWorkoutId: undefined,
@@ -120,6 +167,26 @@ export const useStore = create<State>((set, get) => ({
       phase: "work",
       secondsLeft: 0,
       paused: false,
+    }),
+
+  addWorkout: (workout) =>
+    set((state) => {
+      const workouts = [...state.workouts, workout];
+      persistWorkouts(workouts);
+      return { workouts };
+    }),
+
+  removeWorkout: (id) =>
+    set((state) => {
+      const workouts = state.workouts.filter((w) => w.id !== id);
+      persistWorkouts(workouts);
+      if (state.selectedWorkoutId === id) {
+        return {
+          workouts,
+          ...resetSelectionState,
+        };
+      }
+      return { workouts };
     }),
 }));
 
