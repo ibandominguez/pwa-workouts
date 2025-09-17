@@ -27,6 +27,11 @@ Una PWA muy básica que te permite introducir tus workouts en el sigsiguiente fo
 
 > It uses Vite, checkout the package.json for commands.
 
+```sh
+npm run dev
+npm run build
+```
+
 ## LICENSE
 
 MIT
