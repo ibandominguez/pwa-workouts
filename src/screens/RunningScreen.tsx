@@ -83,12 +83,13 @@ const RunningScreen: React.FC = () => {
               </div>
             </div>
           ) : ex?.mediaUrl ? (
-            <img
-              src={ex.mediaUrl}
-              alt={ex.name}
-              className="h-48 sm:h-56 w-full object-cover"
-              draggable={false}
-            />
+            <div className="h-64 rounded overflow-hidden flex items-center justify-center bg-gray-100">
+              <img
+                src={ex.mediaUrl}
+                alt={ex.name}
+                className="object-contain w-full h-full mx-auto"
+              />
+            </div>
           ) : (
             <div className="h-48 sm:h-56 w-full flex items-center justify-center bg-gray-100">
               <span className="text-2xl">💪</span>
