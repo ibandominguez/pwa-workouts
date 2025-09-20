@@ -26,8 +26,8 @@ export default defineConfig(({ command }) => {
           name: "Workouts",
           short_name: "Workouts",
           description: "Todos tus entrenamientos en un solo lugar",
-          theme_color: "#ffffff",
-          background_color: "#ffffff",
+          theme_color: "#155dfc",
+          background_color: "##155dfc",
           display: "standalone",
           start_url: base,
           scope: base,
@@ -59,7 +59,10 @@ export default defineConfig(({ command }) => {
               handler: "CacheFirst",
               options: {
                 cacheName: "google-fonts-webfonts",
-                expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
+                expiration: {
+                  maxEntries: 30,
+                  maxAgeSeconds: 60 * 60 * 24 * 365,
+                },
               },
             },
           ],
